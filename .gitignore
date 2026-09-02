@@ -12,6 +12,7 @@ venv/
 logs/
 .cache/
 .codex-backups/
+docs/archive/
 
 # Runtime data (host-mounted, never committed)
 data/shared_data/**

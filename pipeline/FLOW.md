@@ -109,7 +109,7 @@ manifest.json            # 八步状态
 冒烟：
 
 ```bash
-cd /home/rs/wrs/onnxviewe/quantitize-platform
+cd /data3/ywang/quantitize-platform
 /home/rs/miniconda3/envs/yolov8/bin/python pipeline/verify_patches.py
 ```
 
@@ -157,7 +157,7 @@ validate?
 （勿直接改旧 `quantitize/output_data/...`）：
 
 ```bash
-cd /home/rs/wrs/onnxviewe/quantitize-platform
+cd /data3/ywang/quantitize-platform
 export PY=/home/rs/miniconda3/envs/yolov8/bin/python
 export JOB=data/output_data/20260727_151741_aituosh_moon_0727_2
 # 该 job：onnx_name=aituosh_moon_0727_2，preprocess_mode=grayscale_r_channel
@@ -298,7 +298,7 @@ $PY pipeline/runner/06_bundle.py --job-dir "$JOB"
 ## 6. 冒烟与登记表（不跑完整量化）
 
 ```bash
-cd /home/rs/wrs/onnxviewe/quantitize-platform
+cd /data3/ywang/quantitize-platform
 $PY=/home/rs/miniconda3/envs/yolov8/bin/python
 
 $PY pipeline/verify_patches.py      # 补丁是否从 patches/ 加载

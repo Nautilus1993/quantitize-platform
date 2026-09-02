@@ -28,5 +28,4 @@ validation:
   web_container: healthy
 ```
 
-Restore instructions are in `H200_RECOVERY.md`. `data/output_data` is intentionally outside this system backup and must use a separate retention/archive policy.
-
+Restore instructions are in `../RECOVERY.md`. `data/output_data` is intentionally outside this system backup and must use a separate retention/archive policy.

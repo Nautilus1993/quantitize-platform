@@ -1,5 +1,7 @@
 # Quantitize 可重建环境资料索引
 
+> 按需参考资料。首次接手请先读 `../README.md` 和 `../docs/HANDOFF.md`；只有镜像丢失、硬件平台变化或需要审计依赖时才从这里开始。
+
 本目录保存 2026-09-01 从 `wrs` 当前可运行环境导出的重建资料。二进制镜像、环境包和业务数据位于 NAS；本机保存声明文件、原始构建文件、固定基础镜像版本和 Agent 操作文档。
 
 ## 从哪里开始
@@ -47,16 +49,15 @@ rebuild/
 ## 二进制资产位置
 
 ```text
-\\10.2.26.26\902_data\3-个人\16-王宇航\3-Project\2-DRO\模型量化\quantitize-platform-backup-20260901
+\\10.2.26.26\902_data\0-项目\13-专项\4-代码\量化平台\H200\snapshot-20260902-182606
 ```
 
 其中：
 
-- `docker-images.tar.zst`：已验证双镜像。
+- `docker-images-api-web.tar.zst`：已验证 API/Web 双镜像。
 - `yolov8_env.tar.gz`：已验证 Conda 环境快照。
-- `quantitize-platform-code.tar.zst`：代码和部署文件。
-- `shared-data.tar.zst`：共享数据。
-- `output-data.tar.zst`：历史任务。
-- `SHA256SUMS`：完整性基线。
+- `quantitize-platform-no-output.tar.zst`：代码、部署文件、重建资料和 `shared_data`。
+- 当前系统快照明确不包含 `output_data`；历史任务使用独立归档策略。
+- `SHA256SUMS`：当前快照完整性基线。
 
 本目录不保存 NAS 密码。

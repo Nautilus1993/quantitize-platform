@@ -51,14 +51,14 @@ CentOS/RHEL 在 SELinux enforcing 模式下，Compose 绑定挂载可能出现 `
 
 ### Level 1：加载已备份镜像
 
-适用：NAS 中 `docker-images.tar.zst` 完整可用。
+适用：NAS 当前快照中的 `docker-images-api-web.tar.zst` 完整可用。
 
 优点：最接近字节级复现，不依赖未来 apt、Conda 或 PyPI 仓库。
 
 ```bash
 cd /srv/quantitize-migration
 sha256sum -c SHA256SUMS
-zstd -dc docker-images.tar.zst | docker load
+zstd -dc docker-images-api-web.tar.zst | docker load
 
 docker image inspect quantitize-platform-api:latest --format '{{.Id}} {{.Architecture}} {{.Size}}'
 docker image inspect quantitize-platform-web:latest --format '{{.Id}} {{.Architecture}} {{.Size}}'
@@ -80,8 +80,8 @@ Web sha256:af4e5f40d7f9948b516d4584b935a190210b208e3f7809080034801ac46534a3
 准备：
 
 ```bash
-PROJECT_ROOT=/home/rs/wrs/onnxviewe/quantitize-platform
-ENV_ARCHIVE=/home/rs/wrs/onnxviewe/yolov8_env.tar.gz
+PROJECT_ROOT=/data3/ywang/quantitize-platform
+ENV_ARCHIVE=/path/to/yolov8_env.tar.gz
 BUILD_CONTEXT=/tmp/quantitize-yolov8-env-context
 
 sha256sum "$ENV_ARCHIVE"
