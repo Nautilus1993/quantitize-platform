@@ -82,7 +82,13 @@ def main() -> int:
     inv_path = cfg.results_dir / "bundle_inventory.json"
     inv_path.parent.mkdir(parents=True, exist_ok=True)
     inv_path.write_text(json.dumps(inv, indent=2), encoding="utf-8")
-    dir_inv = inventory_job_dir(cfg.job_root, onnx_name=cfg.onnx_name, deliverable_only=True)
+    dir_inv = inventory_job_dir(
+        cfg.job_root,
+        onnx_name=cfg.onnx_name,
+        deliverable_only=True,
+        workspace_dir=cfg.workspace_dir,
+        fpga_test_pack_dir=cfg.fpga_test_pack_dir,
+    )
     (cfg.results_dir / "job_dir_inventory.json").write_text(
         json.dumps(dir_inv, indent=2), encoding="utf-8"
     )

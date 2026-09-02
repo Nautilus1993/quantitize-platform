@@ -177,7 +177,13 @@ def bundle_inventory_payload(cfg: JobConfig) -> dict[str, Any]:
         source_label = f"zip: {zp.name}"
         has_zip = True
     else:
-        inv = inventory_job_dir(cfg.job_root, onnx_name=cfg.onnx_name, deliverable_only=True)
+        inv = inventory_job_dir(
+            cfg.job_root,
+            onnx_name=cfg.onnx_name,
+            deliverable_only=True,
+            workspace_dir=cfg.workspace_dir,
+            fpga_test_pack_dir=cfg.fpga_test_pack_dir,
+        )
         source_label = "成果目录（zip 尚未生成）"
         has_zip = False
     for row in inv.get("by_top_level", []):

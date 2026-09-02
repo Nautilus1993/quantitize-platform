@@ -624,18 +624,42 @@ def quantize_static_inner(excluded_nodes_file, calibration_data_reader, model_ou
     print_memory_usage("量化开始前（垃圾回收后）")
     if not os.path.exists(model_output):
         print(f'{model_output}')
-        quantize_static(
-            model_input=model_input,
-            model_output=model_output,
-            calibration_data_reader=calibration_data_reader,
-            quant_format=QuantFormat.QDQ,
-            activation_type=QuantType.QInt16,#激活值采用16位
-            weight_type=QuantType.QInt8,
-            per_channel=True,
-            reduce_range=False,
-            nodes_to_exclude=excluded_nodes,  # 排除敏感节点
-            extra_options=extra_options,
-        )
+        # ORT 1.x hard-codes calibration inference to CPU even when the CUDA
+        # provider is installed.  The public calibrator exposes a provider
+        # setter but quantize_static does not forward it, so patch only the
+        # factory in this single-task process and restore it afterward.
+        provider_mode = os.environ.get("QUANTIZE_CALIBRATION_PROVIDER", "cpu").strip().lower()
+        quantize_globals = quantize_static.__globals__
+        original_create_calibrator = quantize_globals.get("create_calibrator")
+
+        if provider_mode == "cuda" and original_create_calibrator is not None:
+            def _create_cuda_calibrator(*args, **kwargs):
+                calibrator = original_create_calibrator(*args, **kwargs)
+                calibrator.set_execution_providers(
+                    ["CUDAExecutionProvider", "CPUExecutionProvider"]
+                )
+                print("✓ 量化校准 providers: CUDAExecutionProvider, CPUExecutionProvider")
+                return calibrator
+
+            quantize_globals["create_calibrator"] = _create_cuda_calibrator
+        else:
+            print("量化校准 provider: CPUExecutionProvider")
+        try:
+            quantize_static(
+                model_input=model_input,
+                model_output=model_output,
+                calibration_data_reader=calibration_data_reader,
+                quant_format=QuantFormat.QDQ,
+                activation_type=QuantType.QInt16,  # 激活值采用16位
+                weight_type=QuantType.QInt8,
+                per_channel=True,
+                reduce_range=False,
+                nodes_to_exclude=excluded_nodes,  # 排除敏感节点
+                extra_options=extra_options,
+            )
+        finally:
+            if original_create_calibrator is not None:
+                quantize_globals["create_calibrator"] = original_create_calibrator
     end_time = time.time()
     quantization_time = end_time - start_time
     print(f"量化过程耗时: {quantization_time/60:.2f} 分钟")

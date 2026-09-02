@@ -49,6 +49,16 @@ SHARED_DATA_ROOT = _abs_from_env(
     "SHARED_DATA_ROOT", DATA_DIR / "shared_data", base=PLATFORM_ROOT
 )
 
+# Optional high-speed per-task scratch.  Empty means the legacy all-in-job-root
+# layout.  New tasks persist whether scratch is enabled in job_config.json so
+# historical jobs keep their original layout.
+_scratch_raw = os.environ.get("TASK_SCRATCH_ROOT", "").strip()
+TASK_SCRATCH_ROOT = (
+    _abs_from_env("TASK_SCRATCH_ROOT", PLATFORM_ROOT / ".scratch", base=PLATFORM_ROOT)
+    if _scratch_raw
+    else None
+)
+
 # 兼容旧 _lib 命名（历史代码里 QUANTITIZE_DIR = 产品根）
 QUANTITIZE_DIR = PLATFORM_ROOT
 # 用于从 PYTHONPATH 剔除的「仓库上层」
@@ -123,6 +133,7 @@ if __name__ == "__main__":
     print(f"DATA_DIR={DATA_DIR}")
     print(f"OUTPUT_DATA_ROOT={OUTPUT_DATA_ROOT}")
     print(f"SHARED_DATA_ROOT={SHARED_DATA_ROOT}")
+    print(f"TASK_SCRATCH_ROOT={TASK_SCRATCH_ROOT or ''}")
     print(f"PATCHES_DIR={PATCHES_DIR}")
     print(f"QUANTITIZE_LEGACY_DIR={QUANTITIZE_LEGACY_DIR}")
     for name, path in sorted(all_registered_scripts().items()):

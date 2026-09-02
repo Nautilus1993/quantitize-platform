@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -55,42 +56,53 @@ def run_pt_eval(cfg: JobConfig) -> int:
         print("错误: 无测试图", file=sys.stderr)
         return 1
 
+    batch_size = max(1, int(os.environ.get("PT_EVAL_BATCH_SIZE", "8")))
     per_image = []
-    for img_path in images:
-        label_path = cfg.test_labels_dir / f"{img_path.stem}.txt"
-        img = imread_unicode(img_path)
-        orig_h, orig_w = img.shape[:2]
-        bgr = bgr_for_pt_predict(img, cfg.preprocess_mode, ev.imgsz)
+    for start in range(0, len(images), batch_size):
+        batch_paths = images[start : start + batch_size]
+        prepared = []
+        shapes = []
+        for img_path in batch_paths:
+            img = imread_unicode(img_path)
+            orig_h, orig_w = img.shape[:2]
+            prepared.append(bgr_for_pt_predict(img, cfg.preprocess_mode, ev.imgsz))
+            shapes.append((orig_h, orig_w))
         results = model.predict(
-            source=bgr,
+            source=prepared,
             imgsz=ev.imgsz,
             conf=ev.conf,
             iou=ev.iou,
             max_det=ev.max_det,
+            batch=batch_size,
             verbose=False,
         )
-        dets = results[0].boxes
-        pred_boxes: list = []
-        if dets is not None and len(dets):
-            xyxy = dets.xyxy.cpu().numpy()
-            confs = dets.conf.cpu().numpy()
-            clss = dets.cls.cpu().numpy()
-            scale_x = orig_w / ev.imgsz
-            scale_y = orig_h / ev.imgsz
-            for i in range(len(xyxy)):
-                x1, y1, x2, y2 = xyxy[i]
-                x1 *= scale_x
-                x2 *= scale_x
-                y1 *= scale_y
-                y2 *= scale_y
-                pred_boxes.append([float(x1), float(y1), float(x2), float(y2), float(confs[i]), float(clss[i])])
+        for img_path, (orig_h, orig_w), result in zip(batch_paths, shapes, results):
+            label_path = cfg.test_labels_dir / f"{img_path.stem}.txt"
+            dets = result.boxes
+            pred_boxes: list = []
+            if dets is not None and len(dets):
+                xyxy = dets.xyxy.cpu().numpy()
+                confs = dets.conf.cpu().numpy()
+                clss = dets.cls.cpu().numpy()
+                scale_x = orig_w / ev.imgsz
+                scale_y = orig_h / ev.imgsz
+                for i in range(len(xyxy)):
+                    x1, y1, x2, y2 = xyxy[i]
+                    x1 *= scale_x
+                    x2 *= scale_x
+                    y1 *= scale_y
+                    y2 *= scale_y
+                    pred_boxes.append(
+                        [float(x1), float(y1), float(x2), float(y2), float(confs[i]), float(clss[i])]
+                    )
 
-        gt = load_yolo_labels(label_path, orig_w, orig_h, label_wh_ref=cfg.test_label_wh_ref())
-        m = evaluate_image_pair(pred_boxes, gt, ev.nc, ev.eval_iou)
-        m["image"] = img_path.name
-        m["pred_boxes"] = pred_boxes
-        m["gt_boxes"] = [list(b) for b in gt]
-        per_image.append(m)
+            gt = load_yolo_labels(label_path, orig_w, orig_h, label_wh_ref=cfg.test_label_wh_ref())
+            m = evaluate_image_pair(pred_boxes, gt, ev.nc, ev.eval_iou)
+            m["image"] = img_path.name
+            m["pred_boxes"] = pred_boxes
+            m["gt_boxes"] = [list(b) for b in gt]
+            per_image.append(m)
+        print(f"  PT batch {min(start + batch_size, len(images))}/{len(images)}", flush=True)
 
     summary = aggregate_detection_metrics(per_image, ev.nc)
     write_eval_outputs(
@@ -101,7 +113,7 @@ def run_pt_eval(cfg: JobConfig) -> int:
         test_images_dir=cfg.test_images_dir,
         eval_iou=ev.eval_iou,
     )
-    print(f"PT 评估完成: {cfg.pt_eval_dir() / 'summary.json'}")
+    print(f"PT 评估完成: {cfg.pt_eval_dir() / 'summary.json'} | batch={batch_size}")
     return 0
 
 

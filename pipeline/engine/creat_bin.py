@@ -21,45 +21,31 @@ Tb                          =1
 
 def parallel_of_feature(input, CH, H, W):
     slice_of_CH = (CH + Tout - 1) // Tout
-    output = np.zeros((slice_of_CH, H, W, Tout))
-    for h in range(H):
-        for w in range(W):
-            for ch in range(slice_of_CH):
-                for t in range(Tout):
-                    if ch * Tout + t < CH:
-                        tp = input[ch * Tout + t][h][w]
-                    else:
-                        tp = 0
-                    output[ch][h][w][t] = tp
-    return output
+    src = np.asarray(input).reshape(CH, H, W)
+    padded = np.zeros((slice_of_CH * Tout, H, W), dtype=src.dtype)
+    padded[:CH] = src
+    return padded.reshape(slice_of_CH, Tout, H, W).transpose(0, 2, 3, 1)
 
 def parallel_of_bn(bn_input, CH):
     slice_of_CH = (CH + Tout - 1) // Tout
     Total_CH = slice_of_CH*Tout*2
-    bn_output = np.zeros((Total_CH))
-    for chout in range(CH):
-        for i in range(2):
-            bn_output[2*chout+i] = bn_input[chout][i]
-    return bn_output.flatten()
+    src = np.asarray(bn_input)
+    bn_output = np.zeros(Total_CH, dtype=src.dtype)
+    bn_output[: CH * 2] = src[:CH, :2].reshape(-1)
+    return bn_output
 
 
 def parallel_weight(weight_input, CHout, CHin, Ky, Kx):
     slice_of_CHin = (CHin + Tin - 1) // Tin
     slice_of_CHout = (CHout + Tout - 1) // Tout
-    weight_reorg = np.zeros((slice_of_CHout, slice_of_CHin, Ky, Kx, Tout, Tin))
-    for chout in range(slice_of_CHout):
-        for chin in range(slice_of_CHin):
-            for ky in range(Ky):
-                for kx in range(Kx):
-                    for tout in range(Tout):
-                        for tin in range(Tin):
-                            if chout * Tout + tout < CHout and chin * Tin + tin < CHin:
-                                tp1 = weight_input[chout * Tout + tout][chin * Tin + tin][ky][kx]
-                                # print(chout, chin, ky, kx, tout, ll, tout)
-                            else:
-                                tp1 = 0
-                            weight_reorg[chout][chin][ky][kx][tout][tin] = tp1
-    return weight_reorg
+    src = np.asarray(weight_input).reshape(CHout, CHin, Ky, Kx)
+    padded = np.zeros(
+        (slice_of_CHout * Tout, slice_of_CHin * Tin, Ky, Kx), dtype=src.dtype
+    )
+    padded[:CHout, :CHin] = src
+    return padded.reshape(
+        slice_of_CHout, Tout, slice_of_CHin, Tin, Ky, Kx
+    ).transpose(0, 2, 4, 5, 1, 3)
 
 
 # @jit(nopython=True)
@@ -100,45 +86,13 @@ def fp16array_to_bin(input_array, output_file):
 
 
 def INTarray_to_bin(dat_in, bin_out):
-    count=len(dat_in)
-    # print(count)
-    mod = count%2
-    if (mod):
-        dat_out_0 = np.zeros((count + 2 - mod) // 2)
-    else:
-        dat_out_0 = np.zeros(count // 2)
-
-    if(mod):
-        print("txt行数不是2的倍数，补充", (2-mod),"行0")
-        for i in range(2-mod):
-            dat_in = np.append(dat_in,0)
-        #print(dat_in)
-
-    for i in range(dat_out_0.size):
-        a1 = int(dat_in[2 * i])
-        if (a1 < 0):
-            a1 = 256 + a1
-        a1 = a1
-
-        a2 = int(dat_in[2 * i + 1])
-        if (a2 < 0):
-            a2 = 256 + a2
-        a2 = a2 * 256
-
-        b = a1 + a2
-        if ((b <= 32767 )& (b >= -32768)):
-            b=b
-        else:
-            b = b - 65536
-        dat_out_0[i] = b
-
-    dat_out_1 = open(bin_out, 'wb')
-    size = dat_out_0.size
-    for i in range(size):
-        a = int(dat_out_0[i])
-        b = struct.pack('h', a)
-        dat_out_1.write(b)
-    dat_out_1.close()
+    values = np.asarray(dat_in).reshape(-1).astype(np.int16, copy=False)
+    if values.size % 2:
+        print("txt行数不是2的倍数，补充 1 行0")
+        values = np.pad(values, (0, 1), mode="constant")
+    u8 = (values & np.int16(0xFF)).astype(np.uint16)
+    words = u8[0::2] | (u8[1::2] << np.uint16(8))
+    words.astype("<u2", copy=False).tofile(bin_out)
 
 
 def creat_bin(data_in, output_name):
@@ -167,4 +121,3 @@ def creat_bin(data_in, output_name):
     else:
         print(output_name, '   fl')
         fp16array_to_bin (Tdata.flatten(), output_name)
-    

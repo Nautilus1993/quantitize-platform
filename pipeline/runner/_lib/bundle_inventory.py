@@ -7,7 +7,7 @@ from __future__ import annotations
 import zipfile
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 def _dir_inventory(root: Path, prefix: str = "") -> Tuple[List[Dict[str, Any]], int]:
@@ -82,10 +82,17 @@ def arcname_in_bundle(arcname: str, onnx_name: str, *, slim: bool) -> bool:
     return True
 
 
-def inventory_job_dir(job_root: Path, *, onnx_name: str = "", deliverable_only: bool = False) -> Dict[str, Any]:
+def inventory_job_dir(
+    job_root: Path,
+    *,
+    onnx_name: str = "",
+    deliverable_only: bool = False,
+    workspace_dir: Optional[Path] = None,
+    fpga_test_pack_dir: Optional[Path] = None,
+) -> Dict[str, Any]:
     sections = [
-        ("workspace", job_root / "workspace"),
-        ("fpga_test_pack", job_root / "fpga_test_pack"),
+        ("workspace", workspace_dir or job_root / "workspace"),
+        ("fpga_test_pack", fpga_test_pack_dir or job_root / "fpga_test_pack"),
         ("results", job_root / "results"),
         ("logs", job_root / "logs"),
         ("input", job_root / "input"),

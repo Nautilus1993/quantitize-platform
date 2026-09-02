@@ -75,43 +75,17 @@ def pack_12bit_to_bytes(data_12bit: np.ndarray) -> bytes:
     Returns:
         打包后的字节数组
     """
-    data_12bit = data_12bit.astype(np.uint16)
-    num_values = len(data_12bit)
-    
-    # 如果是奇数个值，添加一个0值使其成为偶数
-    if num_values % 2 == 1:
-        data_12bit = np.append(data_12bit, 0)
-        num_values += 1
-    
-    # 将数据分成两两一组
-    pairs = data_12bit.reshape(-1, 2)
-    
-    # 打包：每对12bit值打包成3字节（与 image_selftest_Pre.py 对齐）
-    # 约定：
-    #   byte0 = val1[7:0]
-    #   byte1 = (val2[3:0] << 4) | val1[11:8]
-    #   byte2 = val2[11:4]
-    packed = bytearray()
-    
-    for pair in pairs:
-        # 仅保留12bit，避免输入数组中出现超范围值影响打包结果
-        val1 = pair[0] & 0x0FFF
-        val2 = pair[1] & 0x0FFF
-        
-        # 第一个12bit值：低8位 -> byte0，高4位 -> byte1低4位
-        byte0 = val1 & 0xFF  # 低8位
-        byte1_low = (val1 >> 8) & 0x0F  # 高4位
-        
-        # 第二个12bit值：低4位 -> byte1高4位，高8位 -> byte2
-        byte1_high = val2 & 0x0F
-        byte2 = (val2 >> 4) & 0xFF
-        
-        # 组合字节1：高4位是val2低4位，低4位是val1高4位
-        byte1 = (byte1_high << 4) | byte1_low
-        
-        packed.extend([byte0, byte1, byte2])
-    
-    return bytes(packed)
+    values = np.asarray(data_12bit, dtype=np.uint16).reshape(-1) & np.uint16(0x0FFF)
+    if values.size % 2:
+        values = np.pad(values, (0, 1), mode="constant")
+    pairs = values.reshape(-1, 2)
+    val1 = pairs[:, 0]
+    val2 = pairs[:, 1]
+    packed = np.empty((pairs.shape[0], 3), dtype=np.uint8)
+    packed[:, 0] = val1 & np.uint16(0xFF)
+    packed[:, 1] = ((val2 & np.uint16(0x0F)) << np.uint16(4)) | (val1 >> np.uint16(8))
+    packed[:, 2] = val2 >> np.uint16(4)
+    return packed.tobytes()
 
 
 def unpack_12bit_from_bytes(packed_data: bytes) -> np.ndarray:
@@ -124,31 +98,14 @@ def unpack_12bit_from_bytes(packed_data: bytes) -> np.ndarray:
     Returns:
         12bit值数组（uint16类型）
     """
-    num_bytes = len(packed_data)
-    num_pairs = num_bytes // 3
-    
-    unpacked = []
-    
-    for i in range(num_pairs):
-        idx = i * 3
-        byte0 = packed_data[idx]
-        byte1 = packed_data[idx + 1]
-        byte2 = packed_data[idx + 2]
-        
-        # 提取第一个12bit值
-        val1_low = byte0  # 低8位
-        val1_high = byte1 & 0x0F  # 高4位（字节1的低4位）
-        val1 = ((val1_high << 8) | val1_low) & 0x0FFF
-        
-        # 提取第二个12bit值（与打包规则对称）
-        # byte1高4位是val2低4位，byte2是val2高8位
-        val2_low4 = (byte1 >> 4) & 0x0F
-        val2_high8 = byte2
-        val2 = ((val2_high8 << 4) | val2_low4) & 0x0FFF
-        
-        unpacked.extend([val1, val2])
-    
-    return np.array(unpacked, dtype=np.uint16)
+    raw = np.frombuffer(packed_data, dtype=np.uint8)
+    if raw.size % 3:
+        raise ValueError("12bit packed data length must be divisible by 3")
+    triples = raw.reshape(-1, 3).astype(np.uint16)
+    unpacked = np.empty(triples.shape[0] * 2, dtype=np.uint16)
+    unpacked[0::2] = ((triples[:, 1] & 0x0F) << 8) | triples[:, 0]
+    unpacked[1::2] = (triples[:, 2] << 4) | (triples[:, 1] >> 4)
+    return unpacked
 
 
 def png_to_bin(png_path: str, bin_path: str, target_size: int = 2000) -> Tuple[np.ndarray, np.ndarray]:
@@ -206,29 +163,21 @@ def png_to_bin(png_path: str, bin_path: str, target_size: int = 2000) -> Tuple[n
     if bytes_per_row_data > BYTES_PER_ROW:
         raise ValueError(f"每行需要的字节数 ({bytes_per_row_data}) 超过了行大小限制 ({BYTES_PER_ROW})")
     
-    # 按行处理
-    with open(bin_path, 'wb') as f:
-        total_valid_bytes = 0
-        for row_idx in range(height):
-            # 获取当前行的数据
-            row_data = gray_12bit[row_idx, :]
-            
-            # 将12bit值打包成字节数组（每2个12bit值打包成3字节）
-            packed_row = pack_12bit_to_bytes(row_data)
-            
-            # 验证打包后的字节数
-            if len(packed_row) != bytes_per_row_data:
-                print(f"⚠️  警告: 第{row_idx}行打包后字节数不匹配: 期望{bytes_per_row_data}, 实际{len(packed_row)}")
-            
-            total_valid_bytes += len(packed_row)
-            
-            # 如果不足4096字节，补零
-            if len(packed_row) < BYTES_PER_ROW:
-                padding = bytes(BYTES_PER_ROW - len(packed_row))
-                packed_row = packed_row + padding
-            
-            # 写入文件（每行固定4096字节）
-            f.write(packed_row)
+    # 整图向量化打包，保持逐行 4096 字节布局与旧实现逐字节一致。
+    values = gray_12bit
+    if width % 2:
+        values = np.pad(values, ((0, 0), (0, 1)), mode="constant")
+    pairs = values.reshape(height, -1, 2)
+    val1 = pairs[:, :, 0]
+    val2 = pairs[:, :, 1]
+    triples = np.empty((height, pairs.shape[1], 3), dtype=np.uint8)
+    triples[:, :, 0] = val1 & np.uint16(0xFF)
+    triples[:, :, 1] = ((val2 & np.uint16(0x0F)) << np.uint16(4)) | (val1 >> np.uint16(8))
+    triples[:, :, 2] = val2 >> np.uint16(4)
+    packed_rows = np.zeros((height, BYTES_PER_ROW), dtype=np.uint8)
+    packed_rows[:, :bytes_per_row_data] = triples.reshape(height, bytes_per_row_data)
+    packed_rows.tofile(bin_path)
+    total_valid_bytes = height * bytes_per_row_data
     
     file_size = os.path.getsize(bin_path)
     expected_file_size = height * BYTES_PER_ROW
@@ -285,60 +234,28 @@ def bin_to_png(bin_path: str, png_path: str, width: int = 2000, height: int = 20
     if bytes_per_row_data > BYTES_PER_ROW:
         raise ValueError(f"每行需要的字节数 ({bytes_per_row_data}) 超过了行大小限制 ({BYTES_PER_ROW})")
     
-    # 按行读取并解包
-    all_rows_data = []
-    total_valid_bytes = 0
-    row_valid_bytes_list = []  # 记录每行的有效字节数
-    
-    with open(bin_path, 'rb') as f:
-        for row_idx in range(height):
-            # 读取每行（固定4096字节）
-            row_bytes = f.read(BYTES_PER_ROW)
-            
-            if len(row_bytes) != BYTES_PER_ROW:
-                raise ValueError(f"第{row_idx}行读取失败: 期望{BYTES_PER_ROW}字节, 实际{len(row_bytes)}字节")
-            
-            # 只使用有效字节数进行解包
-            valid_row_bytes = row_bytes[:bytes_per_row_data]
-            actual_valid_bytes = len(valid_row_bytes)
-            total_valid_bytes += actual_valid_bytes
-            row_valid_bytes_list.append(actual_valid_bytes)
-            
-            # 验证有效字节数
-            if actual_valid_bytes != bytes_per_row_data:
-                print(f"⚠️  警告: 第{row_idx}行有效字节数不匹配: 期望{bytes_per_row_data}, 实际{actual_valid_bytes}")
-            
-            # 解包12bit值
-            row_12bit = unpack_12bit_from_bytes(valid_row_bytes)
-            
-            # 如果原始像素数是奇数，最后一个值可能是填充的0，需要移除
-            if len(row_12bit) > width:
-                row_12bit = row_12bit[:width]
-            elif len(row_12bit) < width:
-                # 如果不足，说明数据有问题
-                print(f"⚠️  警告: 第{row_idx}行解包后像素数不足: 期望{width}, 实际{len(row_12bit)}")
-            
-            all_rows_data.append(row_12bit)
-    
+    # 整图向量化解包。
+    raw = np.fromfile(bin_path, dtype=np.uint8)
+    if raw.size != height * BYTES_PER_ROW:
+        raise ValueError(f"BIN 数据长度不匹配: {raw.size}")
+    valid = raw.reshape(height, BYTES_PER_ROW)[:, :bytes_per_row_data]
+    triples = valid.reshape(height, -1, 3).astype(np.uint16)
+    unpacked = np.empty((height, triples.shape[1] * 2), dtype=np.uint16)
+    unpacked[:, 0::2] = ((triples[:, :, 1] & 0x0F) << 8) | triples[:, :, 0]
+    unpacked[:, 1::2] = (triples[:, :, 2] << 4) | (triples[:, :, 1] >> 4)
+    data_12bit_2d = unpacked[:, :width]
+    total_valid_bytes = height * bytes_per_row_data
+
     # 统计每行有效字节数
     print(f"\n每行有效字节数统计:")
     print(f"  期望每行有效字节数: {bytes_per_row_data} 字节")
-    if all(b == bytes_per_row_data for b in row_valid_bytes_list):
-        print(f"  ✅ 所有行的有效字节数都正确")
-    else:
-        unique_counts = {}
-        for b in row_valid_bytes_list:
-            unique_counts[b] = unique_counts.get(b, 0) + 1
-        print(f"  ⚠️  有效字节数分布:")
-        for count, num_rows in sorted(unique_counts.items()):
-            print(f"    {count} 字节: {num_rows} 行")
+    print(f"  ✅ 所有行的有效字节数都正确")
     
     print(f"\n总有效字节数: {total_valid_bytes} 字节")
     print(f"总填充字节数: {file_size - total_valid_bytes} 字节")
     print(f"填充比例: {(file_size - total_valid_bytes) / file_size * 100:.2f}%")
     
-    # 合并所有行
-    data_12bit = np.concatenate(all_rows_data)
+    data_12bit = data_12bit_2d.reshape(-1)
     
     print(f"解包后数据长度: {len(data_12bit)}")
     print(f"12bit值范围: [{np.min(data_12bit)}, {np.max(data_12bit)}]")

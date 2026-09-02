@@ -28,7 +28,7 @@ rebuild_priority:
   - level: 1
     method: load_saved_docker_images
     reproducibility: exact
-    asset: docker-images.tar.zst
+    asset: docker-images-api-web.tar.zst
   - level: 2
     method: rebuild_from_conda_pack
     reproducibility: high_on_linux_amd64

@@ -53,7 +53,21 @@ def set_step_status(
         manifest["steps"][step] = {}
     entry = manifest["steps"][step]
     entry["status"] = status
-    entry["updated_at"] = _now_iso()
+    now = _now_iso()
+    entry["updated_at"] = now
+    if status == "running":
+        entry["started_at"] = now
+        entry.pop("duration_seconds", None)
+    elif status in {"completed", "failed"}:
+        started = entry.get("started_at")
+        if started:
+            try:
+                entry["duration_seconds"] = round(
+                    (datetime.fromisoformat(now) - datetime.fromisoformat(started)).total_seconds(),
+                    3,
+                )
+            except (TypeError, ValueError):
+                pass
     if status == "completed" and message is None:
         entry.pop("message", None)
     elif message is not None:

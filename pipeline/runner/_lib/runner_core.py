@@ -25,6 +25,11 @@ from env import run_script  # noqa: E402
 from input_manifest import write_input_manifest  # noqa: E402
 from job_config import JobConfig  # noqa: E402
 from manifest import load_manifest, save_manifest, set_step_status  # noqa: E402
+from scratch_lifecycle import (  # noqa: E402
+    archive_failed_scratch,
+    ensure_scratch_ready,
+    finalize_success_scratch,
+)
 
 
 def _log(cfg: JobConfig, step: str) -> Path:
@@ -167,6 +172,7 @@ def _step_completed(manifest: dict, step: str) -> bool:
 
 
 def run_full_pipeline(cfg: JobConfig) -> None:
+    scratch = ensure_scratch_ready(cfg)
     cfg.ensure_layout()
     cfg.save()
     write_input_manifest(cfg)
@@ -174,6 +180,7 @@ def run_full_pipeline(cfg: JobConfig) -> None:
     manifest["display_name"] = cfg.display_name
     manifest["job_id"] = cfg.job_id
     manifest["status"] = "running"
+    manifest["scratch"] = scratch
     manifest.pop("error", None)
     save_manifest(cfg.manifest_path, manifest)
 
@@ -196,9 +203,31 @@ def run_full_pipeline(cfg: JobConfig) -> None:
             fn()
             save_manifest(cfg.manifest_path, manifest)
         manifest["status"] = "completed"
+        save_manifest(cfg.manifest_path, manifest)
+        try:
+            manifest["scratch_cleanup"] = finalize_success_scratch(cfg)
+        except Exception as cleanup_error:
+            # 成果已在持久盘完成；清理失败只进入重试状态，不反转任务结果。
+            manifest["scratch_cleanup"] = {
+                "status": "pending",
+                "error": str(cleanup_error),
+            }
     except Exception as e:
         manifest["status"] = "failed"
         manifest["error"] = str(e)
+        manifest["failure_archive_status"] = "copying" if cfg.use_scratch else "not_applicable"
+        save_manifest(cfg.manifest_path, manifest)
+        try:
+            archive = archive_failed_scratch(cfg)
+            manifest["failure_archive_status"] = archive.get("status", "verified")
+            manifest["failure_archive"] = {
+                key: archive.get(key)
+                for key in ("archive", "file_count", "total_bytes", "verified_at_epoch")
+                if archive.get(key) is not None
+            }
+        except Exception as archive_error:
+            manifest["failure_archive_status"] = "pending"
+            manifest["failure_archive_error"] = str(archive_error)
         save_manifest(cfg.manifest_path, manifest)
         raise
     save_manifest(cfg.manifest_path, manifest)

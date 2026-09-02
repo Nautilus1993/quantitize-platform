@@ -5,7 +5,10 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -22,6 +25,21 @@ from job_config import JobConfig  # noqa: E402
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".webp"}
 FPGA_SIZE = 2000
+
+
+def _convert_image(item: tuple[str, str, str, int]) -> tuple[str, str, str]:
+    """Process one image in a worker; outputs are disjoint and deterministic."""
+    img_path, bin_path, side_path, target_size = item
+    import cv2
+    from png_bin_converter import bin_to_png, png_to_bin
+
+    cv2.setNumThreads(1)
+    # The converter's diagnostic output is useful for the CLI but prohibitively
+    # noisy for 840 worker jobs.  The parent prints bounded progress instead.
+    with contextlib.redirect_stdout(io.StringIO()):
+        png_to_bin(img_path, bin_path, target_size=target_size)
+        bin_to_png(bin_path, side_path, width=target_size, height=target_size)
+    return img_path, bin_path, side_path
 
 
 def list_test_images(images_dir: Path) -> list[Path]:
@@ -59,14 +77,30 @@ def main() -> int:
     _clean_generated_files(bins_dir)
     _clean_generated_files(side_dir)
 
-    from png_bin_converter import bin_to_png, png_to_bin  # noqa: WPS433
+    requested_workers = max(1, int(os.environ.get("FPGA_PACK_WORKERS", "8")))
+    workers = min(requested_workers, len(images), os.cpu_count() or 1)
+    work = [
+        (
+            str(img_path),
+            str(bins_dir / f"{img_path.stem}.bin"),
+            str(side_dir / f"{img_path.stem}.png"),
+            FPGA_SIZE,
+        )
+        for img_path in images
+    ]
+    if workers == 1:
+        converted = [_convert_image(item) for item in work]
+    else:
+        from concurrent.futures import ProcessPoolExecutor
+
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            converted = list(pool.map(_convert_image, work, chunksize=1))
 
     manifest_entries = []
-    for idx, img_path in enumerate(images):
-        bin_path = bins_dir / f"{img_path.stem}.bin"
-        side_path = side_dir / f"{img_path.stem}.png"
-        png_to_bin(str(img_path), str(bin_path), target_size=FPGA_SIZE)
-        bin_to_png(str(bin_path), str(side_path), width=FPGA_SIZE, height=FPGA_SIZE)
+    for idx, (img_s, bin_s, side_s) in enumerate(converted):
+        img_path = Path(img_s)
+        bin_path = Path(bin_s)
+        side_path = Path(side_s)
         label_path = cfg.test_labels_dir / f"{img_path.stem}.txt"
         manifest_entries.append(
             {
@@ -78,6 +112,8 @@ def main() -> int:
                 "label": str(label_path.relative_to(cfg.job_root)) if label_path.is_file() else None,
             }
         )
+        if (idx + 1) % 50 == 0 or idx + 1 == len(converted):
+            print(f"  converted {idx + 1}/{len(converted)}", flush=True)
 
     (pack / "manifest.json").write_text(
         json.dumps(manifest_entries, indent=2, ensure_ascii=False),
@@ -137,7 +173,7 @@ def main() -> int:
         "```\n",
         encoding="utf-8",
     )
-    print(f"fpga_test_pack 已生成: {pack} ({len(images)} 张)")
+    print(f"fpga_test_pack 已生成: {pack} ({len(images)} 张, workers={workers})")
     return 0
 
 

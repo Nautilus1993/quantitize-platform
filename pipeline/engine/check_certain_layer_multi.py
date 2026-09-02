@@ -496,6 +496,19 @@ def resolve_generate_bin_image(model_path):
     img = _first_image(job_cali)
     if img:
         return img
+    # scratch 布局下 model 位于 TASK_SCRATCH_ROOT/<task_id>/workspace，
+    # 而持久输入仍在 OUTPUT_DATA_ROOT/<task_id>/input。
+    output_root = os.environ.get("OUTPUT_DATA_ROOT", "").strip()
+    scratch_root = os.environ.get("TASK_SCRATCH_ROOT", "").strip()
+    if output_root and scratch_root:
+        try:
+            task_id = os.path.relpath(os.path.abspath(model_path), os.path.abspath(scratch_root)).split(os.sep)[0]
+            persistent_cali = os.path.join(output_root, task_id, "input", "cali")
+            img = _first_image(persistent_cali)
+            if img:
+                return img
+        except (OSError, ValueError):
+            pass
     img = _first_image(os.path.join(legacy, "cali_data"))
     if img:
         return img

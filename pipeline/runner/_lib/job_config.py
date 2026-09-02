@@ -19,6 +19,7 @@ from script_registry import (  # noqa: E402
     OUTPUT_DATA_ROOT,
     PLATFORM_ROOT,
     QUANTITIZE_DIR,
+    TASK_SCRATCH_ROOT,
 )
 
 
@@ -44,6 +45,7 @@ class JobConfig:
     cali_dataset_id: str = ""
     test_dataset_id: str = ""
     preprocess_mode: str = "grayscale_uniform"
+    use_scratch: bool = False
 
     @classmethod
     def from_job_dir(cls, job_dir: Path, **overrides) -> "JobConfig":
@@ -76,6 +78,7 @@ class JobConfig:
             cali_dataset_id=str(data.get("cali_dataset_id", "")),
             test_dataset_id=str(data.get("test_dataset_id", "")),
             preprocess_mode=str(data.get("preprocess_mode", "grayscale_uniform")),
+            use_scratch=bool(data.get("use_scratch", False)),
         )
 
     @classmethod
@@ -98,6 +101,8 @@ class JobConfig:
                 if n > 99:
                     raise RuntimeError("unable to allocate unique task id")
         job_root = OUTPUT_DATA_ROOT / task_id
+        if "use_scratch" not in kwargs:
+            kwargs["use_scratch"] = TASK_SCRATCH_ROOT is not None
         cfg = cls(
             job_root=job_root,
             job_id=task_id,
@@ -153,12 +158,30 @@ class JobConfig:
 
     @property
     def workspace_dir(self) -> Path:
+        if self.use_scratch:
+            return self.scratch_dir / "workspace"
         return self.job_root / "workspace"
 
     @property
     def fpga_test_pack_dir(self) -> Path:
         """FPGA 测试包按任务生成（由当前绑定的测试集 images 转换，不放在 shared_data）。"""
+        if self.use_scratch:
+            return self.scratch_dir / "fpga_test_pack"
         return self.job_root / "fpga_test_pack"
+
+    @property
+    def scratch_dir(self) -> Path:
+        if not self.use_scratch:
+            return self.job_root
+        if TASK_SCRATCH_ROOT is None:
+            raise RuntimeError(
+                f"任务 {self.job_id} 需要 scratch，但未设置 TASK_SCRATCH_ROOT"
+            )
+        root = TASK_SCRATCH_ROOT.resolve()
+        path = (root / self.job_id).resolve()
+        if path.parent != root:
+            raise RuntimeError(f"非法 scratch 任务路径: {path}")
+        return path
 
     @property
     def results_dir(self) -> Path:

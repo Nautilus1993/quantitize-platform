@@ -18,6 +18,13 @@ services:
       PLATFORM_ROOT: /home/rs/wrs/onnxviewe/quantitize-platform
       OUTPUT_DATA_ROOT: /home/rs/wrs/onnxviewe/quantitize-platform/data/output_data
       SHARED_DATA_ROOT: /home/rs/wrs/onnxviewe/quantitize-platform/data/shared_data
+      TASK_SCRATCH_ROOT: /scratch/quantitize
+      TASK_SCRATCH_MIN_FREE_BYTES: "${TASK_SCRATCH_MIN_FREE_BYTES:-161061273600}"
+      FPGA_PACK_WORKERS: "${FPGA_PACK_WORKERS:-8}"
+      PT_EVAL_BATCH_SIZE: "${PT_EVAL_BATCH_SIZE:-8}"
+      # CUDA calibration passed two full A/B runs; CPU remains the fallback
+      # provider and can be forced with QUANTIZE_CALIBRATION_PROVIDER=cpu.
+      QUANTIZE_CALIBRATION_PROVIDER: "${QUANTIZE_CALIBRATION_PROVIDER:-cuda}"
       YOLOV8_PYTHON: /home/rs/miniconda3/envs/yolov8/bin/python
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
       GPU_READINESS_REQUIRED: "${GPU_READINESS_REQUIRED:-1}"
@@ -27,6 +34,7 @@ services:
     volumes:
       - ../data/output_data:/home/rs/wrs/onnxviewe/quantitize-platform/data/output_data
       - ../data/shared_data:/home/rs/wrs/onnxviewe/quantitize-platform/data/shared_data
+      - /data1/ywang/quantitize-scratch:/scratch/quantitize
       # H200 迁移后的共享集已解引用并恢复到 ../data/shared_data，
       # 不再依赖 wrs 上旧项目的绝对路径。
       # 代码热更新，避免每次改 Python 都重建 21GB API 镜像
