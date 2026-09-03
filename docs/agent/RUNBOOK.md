@@ -1,6 +1,6 @@
 # Agent Runbook — Quantitize Platform
 
-先读 `CONTEXT.md`。命令默认在 `ssh H200` 后执行。每次操作重新检查实时状态，不把 2026-09-02 的快照当作资源现状。
+先读 `CONTEXT.md` 和 `../status/platform.json`。命令默认在 `ssh H200` 后执行。状态文件是最近一次验收快照；每次操作仍要重新检查实时资源。
 
 ## 1. 任务分类
 
@@ -178,3 +178,15 @@ risks: []
 remaining: []
 status: DONE|BLOCKED|FAILED
 ```
+
+## 11. 状态和证据更新
+
+只有任务形成新的已验证事实时才更新文档：
+
+1. 按 `../DOCUMENTATION.md` 的影响表确定领域。
+2. 新增性能、备份或恢复证据，不能覆盖旧证据。
+3. 只修改 `../status/platform.json` 中受影响领域及其 `verified_at`。
+4. 运行 `python tools/update_docs.py` 和 `python tools/update_docs.py --check`。
+5. 报告未重新验证的领域；不要顺带刷新它们的日期。
+
+实时GPU占用、运行中的任务、短暂服务错误和临时挂载故障默认只写任务报告，不进入长期状态。

@@ -1,153 +1,33 @@
-# Agent Context — Quantitize Platform
+# Agent 上下文入口
 
-```yaml
-schema: quantitize-agent-context/v1
-updated: 2026-09-03
-authority:
-  current_facts: this_file
-  operations: RUNBOOK.md
-  disaster_recovery: ../reference/RECOVERY.md
-  environment_rebuild: ../../rebuild/REBUILD_GUIDE.md
-  performance: ../reference/PERFORMANCE.md
-  class_21_plan: ../class-21/02_AGENT执行规格_21类模型适配.md
+本文件只负责路由，不保存易变化的服务器、镜像、性能或备份数值。
 
-control_machine:
-  os: Windows
-  workspace: repository clone root
-  ssh_config: C:\Users\admin\.ssh\config
-  secrets_in_docs: prohibited
-  routes:
-    - destination: 10.2.29.0/24
-      gateway: 192.168.31.1
-      interface_index: 19
-      persistent: true
-      purpose: H200 bypasses Astrill
-    - destination: 10.2.26.0/24
-      gateway: 192.168.31.1
-      interface_index: 19
-      persistent: true
-      purpose: wrs/NAS bypass Astrill
+## 资料权威性
 
-hosts:
-  production:
-    alias: H200
-    address: 10.2.29.180
-    user: ywang
-    hostname: user-Rack-Server
-    connection: direct
-    proxy_jump: prohibited
-    os_observed: Ubuntu 22.04.5 LTS
-    kernel_observed: 6.8.0-90-generic
-    architecture: x86_64
-    cpu: 2x Intel Xeon Gold 6530
-    logical_cpus: 128
-    numa_nodes: 4
-    memory: 1 TiB
-    shared_server: true
-  legacy:
-    alias: wrs
-    address: 10.2.26.132
-    user: rs
-    role: historical source only
+| 需要的信息 | 唯一来源 |
+|---|---|
+| 架构、背景和人工交接 | [`../HANDOFF.md`](../HANDOFF.md) |
+| 当前主机、服务、性能、备份和网络状态 | [`../status/platform.json`](../status/platform.json) |
+| 当前状态的人类可读版本 | [`../status/CURRENT.md`](../status/CURRENT.md) |
+| 操作门禁和命令 | [`RUNBOOK.md`](RUNBOOK.md) |
+| 文档影响范围和更新方法 | [`../DOCUMENTATION.md`](../DOCUMENTATION.md) |
+| 灾难恢复 | [`../reference/RECOVERY.md`](../reference/RECOVERY.md) |
+| 环境重建 | [`../../rebuild/REBUILD_GUIDE.md`](../../rebuild/REBUILD_GUIDE.md) |
+| 性能验证方法 | [`../reference/PERFORMANCE.md`](../reference/PERFORMANCE.md) |
+| 21类适配计划 | [`../class-21/02_AGENT执行规格_21类模型适配.md`](../class-21/02_AGENT执行规格_21类模型适配.md) |
 
-gpu:
-  count: 4
-  model: NVIDIA H200 NVL
-  memory_each_mib: 143771
-  driver_observed: 580.82.07
-  compute_capability: sm_90
-  mig: disabled
-  compose_assignment_uuid: GPU-1610284d-3afe-6e14-b8cb-bbbe40a1f28b
-  container_visible_index: 0
-  readiness:
-    required: true
-    min_free_mib: 32768
-    max_utilization_percent: 20
-    poll_seconds: 30
-  allocation_is_not_reservation: true
+## 读取原则
 
-project:
-  host_root: /data3/ywang/quantitize-platform
-  local_mirror: repository clone root
-  compose: deploy/docker-compose.yml
-  compose_env: deploy/.env
-  services:
-    api:
-      container: quantitize-platform-api
-      image: quantitize-platform-api:latest
-      image_id: sha256:39131c33957dfe1d924047bc7de3236e57f1c33f31e0291886d6c14d746d0ef6
-      url: http://10.2.29.180:8000
-      health: /health
-      readiness: /ready
-    web:
-      container: quantitize-platform-web
-      image: quantitize-platform-web:latest
-      image_id: sha256:af4e5f40d7f9948b516d4584b935a190210b208e3f7809080034801ac46534a3
-      url: http://10.2.29.180:8088
-      health: /health
-  restart_policy: unless-stopped
-  last_verified_state: healthy_idle
+1. 每次任务先读取本页和 `platform.json`，但把状态文件视为最近一次验收快照，不视为实时监控。
+2. 再读取 `RUNBOOK.md` 中与任务对应的章节。
+3. 只在恢复、重建、性能或21类适配等场景读取相应专项资料。
+4. 不读取整个 `docs/evidence/`；只读取状态文件或任务明确引用的证据。
+5. 执行前重新检查会变化的目标状态，例如GPU占用、服务health、磁盘和NAS挂载。
 
-pipeline:
-  orchestrator: pipeline/runner/05_runner.py
-  calibration_provider_default: cuda
-  calibration_provider_fallback: cpu
-  performance_report: ../reference/PERFORMANCE.md
-  latest_cuda_validation:
-    - id: 20260902_165033_perf_opt_h200_true_cuda_ab1
-      elapsed_seconds: 790.513
-      status: completed
-    - id: 20260902_170544_perf_opt_h200_true_cuda_ab2
-      elapsed_seconds: 725.451
-      status: completed
-  steps:
-    - pt_eval
-    - quantize
-    - onnx_eval
-    - fpga_test_pack
-    - fpga_eval
-    - generate_bin
-    - merge_bin
-    - bundle
-  golden_task:
-    id: 20260902_065807_test_h200
-    status: completed
-    calibration_dataset: aituosha_moon_500
-    test_dataset: aituosha_moon_840
-    preprocess: grayscale_r_channel
-    all_steps_completed: true
-    bundle_created: true
-    elapsed_seconds: 6252.678
+## 不变的安全边界
 
-storage:
-  project_disk:
-    mount: /data3
-    medium: SATA SSD
-  docker_disk:
-    path: /data1/docker
-    medium: NVMe
-  shared_inputs: /data3/ywang/quantitize-platform/data/shared_data
-  task_outputs: /data3/ywang/quantitize-platform/data/output_data
-  output_data_system_backup: excluded
-  output_data_cleanup_requires_verified_archive: true
-  nas:
-    address: 10.2.26.26
-    share: //10.2.26.26/902_data
-    mount: /mnt/ywang-nas
-    mount_persistent: false
-    system_backup_root: /mnt/ywang-nas/0-项目/13-专项/4-代码/量化平台/H200
-    agent_docs: /mnt/ywang-nas/0-项目/13-专项/4-代码/量化平台/agent_context
-    latest_verified_snapshot: snapshot-20260902-182606
-
-permissions_and_safety:
-  ywang_in_docker_group: true
-  docker_access_is_root_equivalent: true
-  sudo_requires_password: true
-  password_storage: prohibited
-  no_stop_other_users: true
-  no_global_host_change_without_admin: true
-  forbidden_commands:
-    - docker compose down -v
-    - delete apt/dpkg lock files
-    - broad recursive delete with globs
-```
+- H200使用 `ssh H200` 直连，不使用wrs跳板。
+- H200是公用服务器；未经明确授权，不停止其他用户进程，不修改全局Docker、驱动、内核、APT或自动升级策略。
+- 不保存或复述SSH、sudo、NAS等明文密码。
+- `data/output_data`不进入系统恢复快照；验证NAS归档后才允许清理历史输出。
+- 禁止 `docker compose down -v`、删除APT/DPKG lock文件以及使用宽泛通配符递归删除共享数据。

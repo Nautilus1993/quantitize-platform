@@ -9,6 +9,7 @@
 | 新接手同事 | [docs/HANDOFF.md](docs/HANDOFF.md) | 理解背景、服务器、网络、存储、平台架构和日常操作 |
 | 使用 Agent 的同事 | 先读 HANDOFF，再读 [docs/AGENT_GUIDE.md](docs/AGENT_GUIDE.md) | 学会给 Agent 下达安全、可验证的任务 |
 | 自动化 Agent | [AGENTS.md](AGENTS.md) | 获取强制阅读顺序、边界和当前事实来源 |
+| 查看当前状态 | [docs/status/CURRENT.md](docs/status/CURRENT.md) | 最近验证的服务、环境、性能、备份和网络状态 |
 | 故障恢复人员 | [docs/reference/RECOVERY.md](docs/reference/RECOVERY.md) | H200 重启、系统重装或数据盘丢失后的恢复 |
 | 环境重建人员 | [rebuild/REBUILD_GUIDE.md](rebuild/REBUILD_GUIDE.md) | 镜像不可用时从环境包或依赖清单重建 |
 | 性能优化人员 | [docs/reference/PERFORMANCE.md](docs/reference/PERFORMANCE.md) | 理解 H200 性能瓶颈和优化路线 |
@@ -20,6 +21,8 @@
 README.md
   └─ docs/HANDOFF.md
        ├─ docs/AGENT_GUIDE.md
+       ├─ docs/status/CURRENT.md
+       ├─ docs/DOCUMENTATION.md
        ├─ docs/reference/RECOVERY.md
        ├─ docs/reference/PERFORMANCE.md
        └─ rebuild/REBUILD_GUIDE.md
@@ -36,4 +39,4 @@ AGENTS.md
 - 当前仓库是 H200 项目代码的受控镜像；项目内说明用于开发，交接请从本页开始。
 - 文档不保存 SSH、sudo 或 NAS 明文密码。
 
-当前生产入口：<http://10.2.29.180:8088>。
+生产入口和最近验收状态以 [docs/status/CURRENT.md](docs/status/CURRENT.md) 为准。

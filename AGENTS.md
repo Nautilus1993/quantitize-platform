@@ -4,9 +4,10 @@
 
 ## 必读顺序
 
-1. 读取 `docs/agent/CONTEXT.md`，获得当前主机、网络、路径、服务和备份事实。
-2. 读取 `docs/agent/RUNBOOK.md`，按任务类型选择门禁、命令和验收。
-3. 只有在对应场景下再读取：
+1. 读取 `docs/agent/CONTEXT.md`，确定资料权威性和任务所需文档。
+2. 读取 `docs/status/platform.json` 获取最近验证状态；执行前重新检查会变化的目标资源。
+3. 读取 `docs/agent/RUNBOOK.md`，按任务类型选择门禁、命令和验收。
+4. 只有在对应场景下再读取：
    - 灾难恢复：`docs/reference/RECOVERY.md`
    - 环境重建：`rebuild/REBUILD_GUIDE.md`
    - 性能优化与验收：`docs/reference/PERFORMANCE.md`
@@ -28,3 +29,6 @@
 - 先收集证据，再给判断；不要从历史文档推断当前 GPU、磁盘或服务状态。
 - 变更采用可回滚步骤，大文件先写 `.partial`，校验后再原子改名。
 - 每个任务结束时报告：实际变更、验证结果、未完成项和下一步。
+- 修改代码、部署、服务器、网络或备份后，按 `docs/DOCUMENTATION.md` 的影响表只检查受影响领域。
+- 易变事实只写入 `docs/status/platform.json`；运行 `python tools/update_docs.py` 生成 `CURRENT.md`，禁止手改生成文件。
+- 性能和备份验收新增到 `docs/evidence/`，不覆盖旧证据，不把瞬时运行状态写成长期基线。

@@ -1,6 +1,6 @@
 # H200 量化平台恢复手册
 
-只在普通重启、服务丢失、系统重装或 `/data3` 丢失时阅读。当前事实先看 `../agent/CONTEXT.md`。
+只在普通重启、服务丢失、系统重装或`/data3`丢失时阅读。当前主机、镜像和快照值先看`../status/platform.json`；本文只保存恢复流程。
 
 ## 1. 恢复级别
 
@@ -12,11 +12,7 @@
 | 系统重装 | 是 | 准备驱动/Docker/Toolkit/CIFS，再恢复项目和镜像 |
 | 镜像和环境包都不可用 | 是且需外网 | 按 `../../rebuild/REBUILD_GUIDE.md` Level 3 重建 |
 
-最新已验证快照：
-
-```text
-\\10.2.26.26\902_data\0-项目\13-专项\4-代码\量化平台\H200\snapshot-20260902-182606
-```
+最新已验证快照及证据见[当前状态](../status/CURRENT.md#存储与备份)。
 
 ## 2. 普通重启
 
@@ -83,14 +79,16 @@ sudo mount -t cifs //10.2.26.26/902_data /mnt/ywang-nas \
 findmnt /mnt/ywang-nas
 ```
 
-当前没有 `/etc/fstab` 条目，重启后需重新挂载。
+是否配置持久挂载不能从旧文档推断。恢复时检查`findmnt /mnt/ywang-nas`和`/etc/fstab`，当前记录见状态文件的`storage.nas_mount_persistent`。
 
 ## 5. 选择并校验快照
 
 只选择 `LATEST.txt` 指向、且状态为 `VERIFIED` 的目录。忽略任何 `.partial` 文件。
 
 ```bash
-SNAPSHOT='/mnt/ywang-nas/0-项目/13-专项/4-代码/量化平台/H200/snapshot-20260902-182606'
+SNAPSHOT_ROOT='<storage.backup_root from docs/status/platform.json>'
+SNAPSHOT_NAME='<storage.latest_verified_snapshot from docs/status/platform.json>'
+SNAPSHOT="$SNAPSHOT_ROOT/$SNAPSHOT_NAME"
 cd "$SNAPSHOT"
 sha256sum -c SHA256SUMS
 zstd -q -t quantitize-platform-no-output.tar.zst
@@ -101,13 +99,7 @@ find . -name '*.partial' -print
 
 任一检查失败都停止恢复，不删除目标机现有数据。
 
-已验证哈希：
-
-```text
-5d40756c8a3a5e333a58ddce881e56bd8c680b643bfde3ba1d538347c9e42d9c  quantitize-platform-no-output.tar.zst
-1ce12391b0b84abf4de369bd8f2a43f704cf9f131514c7e36fb25c049bad3262  docker-images-api-web.tar.zst
-bb66795409a56195830641d24620b37f7d3617bc4a424517d2885545d1ac7251  yolov8_env.tar.gz
-```
+采用快照目录自己的`SHA256SUMS`作为校验权威；该次快照的不可变验收记录由状态文件`storage.evidence`指向。
 
 ## 6. 恢复项目与镜像
 
@@ -116,7 +108,9 @@ bb66795409a56195830641d24620b37f7d3617bc4a424517d2885545d1ac7251  yolov8_env.tar
 恢复到空目录：
 
 ```bash
-SNAPSHOT='/mnt/ywang-nas/0-项目/13-专项/4-代码/量化平台/H200/snapshot-20260902-182606'
+SNAPSHOT_ROOT='<storage.backup_root from docs/status/platform.json>'
+SNAPSHOT_NAME='<storage.latest_verified_snapshot from docs/status/platform.json>'
+SNAPSHOT="$SNAPSHOT_ROOT/$SNAPSHOT_NAME"
 PROJECT='/data3/ywang/quantitize-platform'
 
 mkdir -p "$PROJECT"

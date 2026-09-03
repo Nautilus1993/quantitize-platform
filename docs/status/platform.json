@@ -1,0 +1,77 @@
+{
+  "schema": "quantitize-platform-status/v1",
+  "updated_at": "2026-09-03T02:15:21+08:00",
+  "source_commit": "c6f83e2c0f00c287c4eb25ed1f06aea4441c9556",
+  "production": {
+    "verified_at": "2026-09-03T02:15:21+08:00",
+    "host_alias": "H200",
+    "address": "10.2.29.180",
+    "user": "ywang",
+    "hostname": "user-Rack-Server",
+    "os": "Ubuntu 22.04.5 LTS",
+    "kernel": "6.8.0-90-generic",
+    "project_root": "/data3/ywang/quantitize-platform",
+    "api_url": "http://10.2.29.180:8000",
+    "web_url": "http://10.2.29.180:8088",
+    "api_state": "healthy",
+    "web_state": "healthy",
+    "worker_state": "idle"
+  },
+  "hardware": {
+    "verified_at": "2026-09-02",
+    "cpu": "2x Intel Xeon Gold 6530",
+    "logical_cpus": 128,
+    "memory": "1 TiB",
+    "gpu_count": 4,
+    "gpu_model": "NVIDIA H200 NVL",
+    "gpu_memory_each_mib": 143771,
+    "driver": "580.82.07",
+    "compute_capability": "sm_90",
+    "mig_enabled": false
+  },
+  "runtime": {
+    "verified_at": "2026-09-03T02:15:21+08:00",
+    "api_image_id": "sha256:39131c33957dfe1d924047bc7de3236e57f1c33f31e0291886d6c14d746d0ef6",
+    "web_image_id": "sha256:af4e5f40d7f9948b516d4584b935a190210b208e3f7809080034801ac46534a3",
+    "calibration_provider_default": "cuda",
+    "calibration_provider_fallback": "cpu",
+    "scratch_root": "/data1/ywang/quantitize-scratch"
+  },
+  "performance": {
+    "verified_at": "2026-09-03",
+    "baseline_seconds": 6252.678,
+    "optimized_average_seconds": 757.982,
+    "speedup": 8.25,
+    "validation_runs": [
+      {
+        "task_id": "20260902_165033_perf_opt_h200_true_cuda_ab1",
+        "elapsed_seconds": 790.513
+      },
+      {
+        "task_id": "20260902_170544_perf_opt_h200_true_cuda_ab2",
+        "elapsed_seconds": 725.451
+      }
+    ],
+    "evidence": "../evidence/performance/2026-09-03-h200-optimization.md"
+  },
+  "storage": {
+    "verified_at": "2026-09-02",
+    "shared_inputs": "/data3/ywang/quantitize-platform/data/shared_data",
+    "task_outputs": "/data3/ywang/quantitize-platform/data/output_data",
+    "nas_address": "10.2.26.26",
+    "nas_share": "//10.2.26.26/902_data",
+    "nas_mount": "/mnt/ywang-nas",
+    "nas_mount_persistent": false,
+    "backup_root": "/mnt/ywang-nas/0-项目/13-专项/4-代码/量化平台/H200",
+    "latest_verified_snapshot": "snapshot-20260902-182606",
+    "output_data_in_system_backup": false,
+    "evidence": "../evidence/backup/snapshot-20260902-182606/BACKUP_STATUS.md"
+  },
+  "network": {
+    "verified_at": "2026-09-02",
+    "h200_route": "10.2.29.0/24 via 192.168.31.1",
+    "wrs_nas_route": "10.2.26.0/24 via 192.168.31.1",
+    "windows_interface_index": 19,
+    "persistent": true
+  }
+}

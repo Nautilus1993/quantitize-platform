@@ -19,39 +19,24 @@
 
 标定集用于量化，不等同于测试集；测试集用于检查指标和问题样本。任务完成的判断依据不是“GPU 跑过”，而是八个阶段全部完成、无 worker/task error、最终 ZIP 存在。
 
-已验证基线任务：
-
-```text
-task_id:       20260902_065807_test_h200
-model:         model.pt
-calibration:   aituosha_moon_500
-test:          aituosha_moon_840
-preprocess:    grayscale_r_channel
-status:        completed
-```
+最近验证过的生产状态、性能任务和证据统一见[当前状态](status/CURRENT.md)，本文不复制易过期的任务编号和耗时。
 
 ## 2. 人、机器和网络
 
 ### 2.1 机器角色
 
-| 名称 | 地址 | 用户 | 角色 | 连接方式 |
-|---|---|---|---|---|
-| 本机 Windows | 局域网工作站 | `admin` | 文档、Agent、SSH 控制端 | 本地 |
-| H200 | `10.2.29.180` | `ywang` | 当前生产量化平台，4×H200 NVL | `ssh H200` 直连 |
-| wrs | `10.2.26.132` | `rs` | 旧环境和历史来源，仅用于追溯 | `ssh wrs` |
-| NAS | `10.2.26.26` | NAS 账户 | 冷备份和 Agent 文档 | SMB/CIFS |
+| 名称 | 稳定角色 | 连接方式 |
+|---|---|---|
+| 本机 Windows | 文档、Agent、SSH控制端 | 本地 |
+| H200 | 当前生产量化平台 | `ssh H200`直连 |
+| wrs | 旧环境和历史来源 | `ssh wrs`，仅按需追溯 |
+| NAS | 冷备份和Agent文档 | SMB/CIFS |
 
-H200 不经过 wrs 跳转。密码不写入文档；SSH 使用本机密钥。
+地址、用户、系统版本和服务入口见[当前状态](status/CURRENT.md)。H200不经过wrs跳转；密码不写入文档，SSH使用本机密钥。
 
 ### 2.2 Astrill 与局域网路由
 
-Astrill 会安装覆盖范围很大的 VPN 路由。为了避免 H200、wrs 和 NAS 流量误入 VPN，本机 Windows 已配置持久路由：
-
-```text
-10.2.29.0/24 -> 192.168.31.1  # H200 网段
-10.2.26.0/24 -> 192.168.31.1  # wrs 和 NAS 网段
-物理网卡 ifIndex: 19
-```
+Astrill会安装覆盖范围很大的VPN路由。为了避免H200、wrs和NAS流量误入VPN，本机Windows使用更具体的持久局域网路由；当前网段、网关和接口索引见[当前状态](status/CURRENT.md#本机网络)。
 
 Windows 路由按“最长前缀优先”选择，因此 `/24` 局域网路由会优先于 Astrill 的 `/1` 广域路由。排查连接时先看路由和 TCP 端口，不要把 IP 直连问题误判成 DNS 问题。
 
@@ -63,19 +48,9 @@ Test-NetConnection 10.2.29.180 -Port 22
 ssh -o BatchMode=yes H200 "whoami; hostname"
 ```
 
-## 3. H200 服务器基线
+## 3. H200服务器基线
 
-```text
-OS:               Ubuntu 22.04.5 LTS
-CPU:              2× Intel Xeon Gold 6530，128 逻辑 CPU，4 NUMA 节点
-内存:             约 1 TiB
-GPU:              4× NVIDIA H200 NVL，每张约 143771 MiB
-驱动:             580.82.07
-架构:             x86_64 / CUDA sm_90
-项目盘:           /data3，SATA SSD
-Docker data-root: /data1/docker，NVMe
-Docker:           服务开机启动
-```
+当前OS、内核、CPU、内存、GPU、驱动和运行镜像见[当前状态](status/CURRENT.md#硬件与运行环境)。这些是观察值，不写入稳定交接说明。
 
 `ywang` 在 Docker 组内，Docker 权限等价于高权限。H200 是公用服务器，GPU、CPU、磁盘和系统包都可能被其他用户使用。不要因为一张卡瞬时利用率为 0 就认为它空闲；还要看显存、进程和连续采样。
 
@@ -125,33 +100,7 @@ data/output_data/<task_id>/
 
 ### 4.3 NAS
 
-H200 上的挂载点：
-
-```text
-/mnt/ywang-nas -> //10.2.26.26/902_data
-```
-
-该挂载当前不是 `/etc/fstab` 持久挂载；服务器重启后，量化服务仍可从本地 `/data3` 启动，但备份或恢复前需要重新挂载 NAS。
-
-系统快照：
-
-```text
-\\10.2.26.26\902_data\0-项目\13-专项\4-代码\量化平台\H200
-```
-
-最新已验证快照：
-
-```text
-snapshot-20260902-182606
-```
-
-它包含项目与 `shared_data`、API/Web 镜像、原始 Conda 环境包、环境清单和恢复手册，不包含 `output_data`。
-
-Agent 文档镜像：
-
-```text
-\\10.2.26.26\902_data\0-项目\13-专项\4-代码\量化平台\agent_context
-```
+NAS用于系统冷备份和独立的历史输出归档。当前共享地址、挂载点、持久性和最新已验证快照见[当前状态](status/CURRENT.md#存储与备份)。系统快照包含项目、`shared_data`、镜像、环境包、重建清单和恢复手册，不包含`output_data`。
 
 ## 5. 平台架构
 
@@ -185,11 +134,7 @@ flowchart LR
 
 ### 6.1 打开平台
 
-浏览器访问：
-
-```text
-http://10.2.29.180:8088
-```
+浏览器入口以[当前状态](status/CURRENT.md#生产服务)为准。
 
 创建任务时确认模型、标定集、测试集和预处理方式。不要重复启动已经 `running` 的任务。
 
@@ -249,17 +194,9 @@ curl -fsS http://127.0.0.1:8088/health
 
 `quantize: pending` 只表示阶段尚未完成并写回 manifest；若 `quantitize.py` 进程仍在消耗 CPU，量化可能正在进行。当前量化引擎大量使用 CPU，GPU 利用率低不一定代表卡住。
 
-## 8. 已知性能特征
+## 8. 性能信息
 
-H200 金标准任务耗时约 1 小时 44 分。约三分之二时间在 `fpga_test_pack` 和 `generate_bin`，它们主要受 CPU、图像编解码和 SATA I/O 限制。当前 ONNX 输入固定 batch=1，H200 的吞吐优势没有充分利用。
-
-因此：
-
-- 不要只根据 GPU 型号估算任务时间。
-- 优化优先级是 NVMe 临时工作区、真实批量推理、并行 FPGA 包生成和减少小文件 I/O。
-- 任何优化必须固定模型和数据清单，执行结果回归。
-
-详细证据见 [reference/PERFORMANCE.md](reference/PERFORMANCE.md)。
+不要只根据GPU型号估算任务时间。当前性能摘要见[当前状态](status/CURRENT.md#最近性能基线)，测试方法和验收门禁见[性能验证规则](reference/PERFORMANCE.md)，完整历史结果通过状态文件引用对应的不可变证据。
 
 ## 9. 故障分流
 
