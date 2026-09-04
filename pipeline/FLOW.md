@@ -205,7 +205,9 @@ $PY pipeline/engine/quantitize.py \
 3. 标准 job 布局：`workspace` 同级的 `input/cali`
 4. 遗留回退：`pipeline/engine/cali_data`（若存在）
 
-`--preprocess-mode` 会作用于校准 DataReader（`rgb` / `grayscale_uniform` / `grayscale_r_channel`）。
+`--preprocess-mode` 会作用于校准 DataReader（`rgb` / `grayscale_uniform` / `grayscale_r_channel` / `passthrough`）。
+
+`passthrough` 表示不做额外灰度/通道预处理，保持图片文件已有的通道内容；仍会做模型输入必需的 resize、BGR->RGB、/255、NCHW。对已经是 `R=gray, G=B=0` 的图片，应优先使用该模式，避免再次 `BGR2GRAY` 导致亮度被压低。
 **预期（`workspace/`）：**
 
 | 文件 | 含义 |

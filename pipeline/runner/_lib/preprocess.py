@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-统一黑白图预处理（WEB_DESIGN.md §4.2）。
+统一输入预处理（WEB_DESIGN.md §4.2）。
 
 路径 A：1280 灰度三通道 — PT / 量化 ONNX 测试
 路径 B：1280 → 2000 png2bin → bin2png → resize 1280 — FPGA 侧视 ONNX 测试
@@ -50,12 +50,14 @@ class InputPreprocessMode(str, Enum):
     RGB = "rgb"
     GRAYSCALE_UNIFORM = "grayscale_uniform"
     GRAYSCALE_R_CHANNEL = "grayscale_r_channel"
+    PASSTHROUGH = "passthrough"
 
 
 INPUT_PREPROCESS_MODE_LABELS = {
     InputPreprocessMode.RGB: "RGB / 彩色预训练（原 BGR resize）",
     InputPreprocessMode.GRAYSCALE_UNIFORM: "黑白 — 三通道同值（统一灰度标定）",
     InputPreprocessMode.GRAYSCALE_R_CHANNEL: "黑白 — R 通道（脚本 / readme 格式）",
+    InputPreprocessMode.PASSTHROUGH: "不做通道预处理（保持原图通道）",
 }
 
 
@@ -69,7 +71,7 @@ def normalize_preprocess_mode(mode: str) -> str:
 def bgr_for_pt_predict(img_bgr: np.ndarray, mode: str, imgsz: int) -> np.ndarray:
     """Ultralytics predict 用 BGR uint8 图。"""
     mode = normalize_preprocess_mode(mode)
-    if mode == InputPreprocessMode.RGB.value:
+    if mode in (InputPreprocessMode.RGB.value, InputPreprocessMode.PASSTHROUGH.value):
         return cv2.resize(img_bgr, (imgsz, imgsz), interpolation=cv2.INTER_LINEAR)
     if mode == InputPreprocessMode.GRAYSCALE_R_CHANNEL.value:
         return grayscale_r_channel_bgr(img_bgr, (imgsz, imgsz))

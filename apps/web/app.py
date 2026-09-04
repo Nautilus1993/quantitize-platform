@@ -29,6 +29,7 @@ PREPROCESS_MODES = [
     ("rgb", "RGB（彩色预训练）"),
     ("grayscale_uniform", "黑白三通道同值"),
     ("grayscale_r_channel", "黑白 R 通道（G=B=0）"),
+    ("passthrough", "不做通道预处理（保持原图通道）"),
 ]
 
 app = FastAPI(title="Quantitize Web UI")

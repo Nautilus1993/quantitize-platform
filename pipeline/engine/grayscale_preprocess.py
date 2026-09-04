@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""统一灰度预处理（引擎层，供 quantitize.py 与 platform 共用）。"""
+"""统一输入预处理（引擎层，供 quantitize.py 与 platform 共用）。
+
+注意：模型推理仍然需要 resize、BGR->RGB、/255、NCHW 这些格式转换。
+这里的“预处理模式”主要指是否额外改动图像通道/灰度内容。
+"""
 
 from __future__ import annotations
 
@@ -92,6 +96,31 @@ def preprocess_rgb_from_bgr(
     return bgr_hwc_to_chw_tensor(resized, dtype=dtype)
 
 
+def preprocess_passthrough_path(
+    image_path: str | Path,
+    target_size: Tuple[int, int] = (1280, 1280),
+    dtype=np.float16,
+) -> np.ndarray:
+    """保持原图通道内容，不额外转灰度。
+
+    适用于输入文件本身已经按模型训练方式准备好的情况，例如：
+    - RGB 彩色图：保持 RGB 内容；
+    - R-only 图：保持 R=gray, G=B=0，不再执行 BGR2GRAY，避免亮度被 0.299 权重压暗。
+
+    仍会执行模型必需的格式处理：resize、BGR->RGB、/255、NCHW。
+    """
+    return preprocess_rgb_path(image_path, target_size, dtype=dtype)
+
+
+def preprocess_passthrough_from_bgr(
+    img_bgr: np.ndarray,
+    target_size: Tuple[int, int] = (1280, 1280),
+    dtype=np.float16,
+) -> np.ndarray:
+    """保持已读入图像的原始通道内容，不额外转灰度。"""
+    return preprocess_rgb_from_bgr(img_bgr, target_size, dtype=dtype)
+
+
 def grayscale_r_channel_bgr(
     img_bgr: np.ndarray,
     target_size: Tuple[int, int] = (1280, 1280),
@@ -124,7 +153,7 @@ def preprocess_grayscale_r_channel_from_bgr(
     return bgr_hwc_to_chw_tensor(bgr, dtype=dtype)
 
 
-PREPROCESS_MODES = ("rgb", "grayscale_uniform", "grayscale_r_channel")
+PREPROCESS_MODES = ("rgb", "grayscale_uniform", "grayscale_r_channel", "passthrough")
 
 
 def preprocess_by_mode(
@@ -133,7 +162,7 @@ def preprocess_by_mode(
     target_size: Tuple[int, int] = (1280, 1280),
     dtype=np.float16,
 ) -> np.ndarray:
-    if mode == "rgb":
+    if mode in ("rgb", "passthrough"):
         return preprocess_rgb_path(image_path, target_size, dtype=dtype)
     if mode == "grayscale_r_channel":
         return preprocess_grayscale_r_channel(image_path, target_size, dtype=dtype)
@@ -148,7 +177,7 @@ def preprocess_bgr_by_mode(
     target_size: Tuple[int, int] = (1280, 1280),
     dtype=np.float16,
 ) -> np.ndarray:
-    if mode == "rgb":
+    if mode in ("rgb", "passthrough"):
         return preprocess_rgb_from_bgr(img_bgr, target_size, dtype=dtype)
     if mode == "grayscale_r_channel":
         return preprocess_grayscale_r_channel_from_bgr(img_bgr, target_size, dtype=dtype)

@@ -27,9 +27,9 @@ IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".webp"}
 FPGA_SIZE = 2000
 
 
-def _convert_image(item: tuple[str, str, str, int]) -> tuple[str, str, str]:
+def _convert_image(item: tuple[str, str, str, int, str]) -> tuple[str, str, str]:
     """Process one image in a worker; outputs are disjoint and deterministic."""
-    img_path, bin_path, side_path, target_size = item
+    img_path, bin_path, side_path, target_size, preprocess_mode = item
     import cv2
     from png_bin_converter import bin_to_png, png_to_bin
 
@@ -37,8 +37,19 @@ def _convert_image(item: tuple[str, str, str, int]) -> tuple[str, str, str]:
     # The converter's diagnostic output is useful for the CLI but prohibitively
     # noisy for 840 worker jobs.  The parent prints bounded progress instead.
     with contextlib.redirect_stdout(io.StringIO()):
-        png_to_bin(img_path, bin_path, target_size=target_size)
-        bin_to_png(bin_path, side_path, width=target_size, height=target_size)
+        png_to_bin(
+            img_path,
+            bin_path,
+            target_size=target_size,
+            preprocess_mode=preprocess_mode,
+        )
+        bin_to_png(
+            bin_path,
+            side_path,
+            width=target_size,
+            height=target_size,
+            preprocess_mode=preprocess_mode,
+        )
     return img_path, bin_path, side_path
 
 
@@ -85,6 +96,7 @@ def main() -> int:
             str(bins_dir / f"{img_path.stem}.bin"),
             str(side_dir / f"{img_path.stem}.png"),
             FPGA_SIZE,
+            cfg.preprocess_mode,
         )
         for img_path in images
     ]
@@ -141,6 +153,7 @@ def main() -> int:
         "iou": cfg.iou,
         "fpga_input_size": FPGA_SIZE,
         "test_image_count": len(images),
+        "preprocess_mode": cfg.preprocess_mode,
     }
     (config_dir / "job_meta.json").write_text(
         json.dumps(job_meta, indent=2, ensure_ascii=False),
@@ -163,7 +176,9 @@ def main() -> int:
     readme.write_text(
         "# FPGA 测试包\n\n"
         f"- 测试图数量: {len(images)}\n"
-        "- 方案 A: 1280 源图 → 2000 png2bin → bin2png 侧视\n"
+        f"- 预处理模式: `{cfg.preprocess_mode}`\n"
+        "- 方案 A: 源图 → 2000 png2bin → bin2png 侧视\n"
+        "- `passthrough` 模式下：源图按 R-only 处理，side_view 也保存为 R=gray,G=B=0\n"
         "- 评估标签: labels_1280.json\n"
         "- 离线评估:\n\n"
         "```bash\n"
